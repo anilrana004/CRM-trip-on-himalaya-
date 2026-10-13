@@ -4,11 +4,14 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
+const showDemo =
+  process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === "true";
+
 export default function LoginPage() {
   const { user, login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("admin@securetravels.in");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,9 +68,11 @@ export default function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </button>
 
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Demo: admin@securetravels.in / admin123 · manager… / manager123 · sales… / sales123
-        </p>
+        {showDemo && (
+          <p className="mt-4 text-center text-xs text-slate-400">
+            Demo: admin@securetravels.in / admin123 · manager… / manager123 · sales… / sales123
+          </p>
+        )}
         <p className="mt-3 text-center text-xs text-slate-500">
           Finance team?{" "}
           <a href="/finance/login" className="font-medium text-emerald-700 hover:underline">

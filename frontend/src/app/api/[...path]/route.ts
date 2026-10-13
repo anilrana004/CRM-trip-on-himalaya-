@@ -54,11 +54,28 @@ async function proxy(req: NextRequest, pathSegments: string[]) {
     );
   }
 
+  const upstreamType = upstream.headers.get("content-type") || "";
+  const bodyText = await upstream.text();
+
+  // Railway returns this HTML/text when the public domain is wrong or the
+  // service is not deployed / not exposed.
+  if (
+    upstream.status === 404 &&
+    /application not found/i.test(bodyText)
+  ) {
+    return NextResponse.json(
+      {
+        message:
+          "Railway backend domain is wrong or the service is not running. Open Railway → your backend service → Settings → Networking → Generate domain, then set Vercel API_PROXY_TARGET to that exact https URL (no path) and redeploy.",
+      },
+      { status: 502 },
+    );
+  }
+
   const outHeaders = new Headers();
-  const upstreamType = upstream.headers.get("content-type");
   if (upstreamType) outHeaders.set("content-type", upstreamType);
 
-  return new NextResponse(upstream.body, {
+  return new NextResponse(bodyText, {
     status: upstream.status,
     headers: outHeaders,
   });

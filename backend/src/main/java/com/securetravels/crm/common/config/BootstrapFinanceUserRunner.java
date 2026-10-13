@@ -40,6 +40,12 @@ public class BootstrapFinanceUserRunner implements CommandLineRunner {
         }
         String password = System.getenv("FINANCE_BOOTSTRAP_PASSWORD");
         if (password == null || password.isBlank()) {
+            // Never ship the weak demo password into production.
+            String profiles = System.getenv().getOrDefault("SPRING_PROFILES_ACTIVE", "");
+            if (profiles.contains("prod")) {
+                log.warn("[bootstrap-finance] skipped: set FINANCE_BOOTSTRAP_PASSWORD in production");
+                return;
+            }
             password = DEFAULT_PASSWORD;
         }
         User finance = new User(

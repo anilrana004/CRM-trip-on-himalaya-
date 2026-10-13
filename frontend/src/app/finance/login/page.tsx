@@ -6,11 +6,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { homePathForRole } from "@/lib/rbac";
 
+const showDemo =
+  process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === "true";
+
 export default function FinanceLoginPage() {
   const { user, login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("finance@securetravels.in");
-  const [password, setPassword] = useState("finance123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,9 +87,11 @@ export default function FinanceLoginPage() {
           {submitting ? "Signing in…" : "Enter Finance ERP"}
         </button>
 
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Demo: finance@securetravels.in · finance123
-        </p>
+        {showDemo && (
+          <p className="mt-4 text-center text-xs text-slate-400">
+            Demo: finance@securetravels.in · finance123
+          </p>
+        )}
         <p className="mt-3 text-center text-xs text-slate-500">
           Sales / ops desk?{" "}
           <Link href="/login" className="font-medium text-emerald-700 hover:underline">
