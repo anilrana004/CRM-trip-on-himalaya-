@@ -38,6 +38,23 @@ Sign in as MANAGER / ADMIN / CEO on the CRM:
 Diagnostic statuses: `CONFIG_MISSING`, `AUTH_FAILURE`, `PERMISSION_FAILURE`,
 `ACCOUNT_INACCESSIBLE`, `RATE_LIMITED`, `UNAVAILABLE`, `OK`.
 
+### 2.1 Campaign & insights live checklist (Phase 5)
+
+Do **not** edit campaigns or increase spend. Read-only UI only.
+
+| Step | Expected |
+|---|---|
+| Manager opens **Campaigns** | Account picker populated from diagnostic-visible accounts |
+| Campaign table | Name, status/effective status, objective; **Load more** if `hasMore` |
+| Empty account | “No campaigns…” empty state (not a fake success row) |
+| Insights presets | last_7d / last_30d etc. refresh Performance table |
+| Empty date range | “No insight rows for this range…” |
+| Wrong/expired token | Error banner with actionable CRM message (no token leak) |
+| SALES user | Cannot open Marketing routes (RBAC) / API returns 403 |
+
+Automated coverage (mocked Graph): `MetaMarketingServiceTest`,
+`MetaMarketingControllerTest`, `MetaMarketingAccessIT` (CRM role gate).
+
 ## 3. Webhook (only after public HTTPS)
 
 Callback: `https://<railway-domain>/api/webhook/meta`

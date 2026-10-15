@@ -6,19 +6,20 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.securetravels.crm.common.config.AppProperties;
 import com.securetravels.crm.common.exception.BadRequestException;
 import com.securetravels.crm.common.exception.ForbiddenException;
+import com.securetravels.crm.common.exception.ServiceUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -119,6 +120,78 @@ class MetaMarketingServiceTest {
         var page = service.listCampaigns("act_111", null, 25);
         assertThat(page.data()).hasSize(1);
         assertThat(page.data().get(0).name()).isEqualTo("Kedarnath");
+        assertThat(page.data().get(0).status()).isEqualTo("ACTIVE");
+        assertThat(page.data().get(0).objective()).isEqualTo("OUTCOME_LEADS");
         assertThat(page.hasMore()).isFalse();
+    }
+
+    @Test
+    void listCampaignsExposesPaginationCursor() {
+        ObjectNode body = mapper.createObjectNode();
+        body.putArray("data").addObject().put("id", "c1").put("name", "A");
+        ObjectNode paging = body.putObject("paging");
+        paging.putObject("cursors").put("after", "CURSOR_1");
+        paging.put("next", "https://graph.facebook.com/v22.0/act_111/campaigns?after=CURSOR_1");
+
+        when(graph.get(eq("campaigns.list"), eq("act_111"), eq("act_111/campaigns"), anyMap()))
+                .thenReturn(body);
+
+        var page = service.listCampaigns("act_111", null, 25);
+        assertThat(page.hasMore()).isTrue();
+        assertThat(page.nextCursor()).isEqualTo("CURSOR_1");
+
+        ArgumentCaptor<Map<String, String>> query = ArgumentCaptor.forClass(Map.class);
+        service.listCampaigns("act_111", "CURSOR_1", 25);
+        verify(graph, org.mockito.Mockito.atLeastOnce())
+                .get(eq("campaigns.list"), eq("act_111"), eq("act_111/campaigns"), query.capture());
+        assertThat(query.getAllValues().stream().anyMatch(q -> "CURSOR_1".equals(q.get("after")))).isTrue();
+    }
+
+    @Test
+    void insightsEmptyPeriodIsEmptyNotSuccessFabrication() {
+        when(graph.getAllPages(eq("insights.list"), eq("act_111"), eq("act_111/insights"), anyMap(), anyInt(), any()))
+                .thenReturn(List.of());
+
+        var report = service.insights("act_111", "last_7d", null, null, "campaign");
+        assertThat(report.rows()).isEmpty();
+        assertThat(report.datePreset()).isEqualTo("last_7d");
+        assertThat(report.accountId()).isEqualTo("act_111");
+    }
+
+    @Test
+    void insightsMapsSpendMetrics() {
+        ObjectNode row = mapper.createObjectNode()
+                .put("campaign_id", "cmp1")
+                .put("campaign_name", "Kedarnath")
+                .put("impressions", "1000")
+                .put("clicks", "40")
+                .put("spend", "250.50")
+                .put("cpc", "6.26")
+                .put("cpm", "250.50")
+                .put("ctr", "4.0")
+                .put("date_start", "2026-10-01")
+                .put("date_stop", "2026-10-07");
+        when(graph.getAllPages(eq("insights.list"), eq("act_111"), eq("act_111/insights"), anyMap(), anyInt(), any()))
+                .thenReturn(List.of(row));
+
+        var report = service.insights("act_111", "last_7d", null, null, "campaign");
+        assertThat(report.rows()).hasSize(1);
+        assertThat(report.rows().get(0).spend()).isEqualTo("250.50");
+        assertThat(report.rows().get(0).ctr()).isEqualTo("4.0");
+    }
+
+    @Test
+    void insightsRejectsPresetAndCustomRangeTogether() {
+        assertThatThrownBy(() -> service.insights("act_111", "last_7d", "2026-01-01", "2026-01-31", "campaign"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("either datePreset or since/until");
+    }
+
+    @Test
+    void missingAccessTokenFailsClosed() {
+        props.getMeta().setAccessToken("");
+        assertThatThrownBy(() -> service.listCampaigns("act_111", null, 10))
+                .isInstanceOf(ServiceUnavailableException.class)
+                .hasMessageContaining("META_ACCESS_TOKEN");
     }
 }
