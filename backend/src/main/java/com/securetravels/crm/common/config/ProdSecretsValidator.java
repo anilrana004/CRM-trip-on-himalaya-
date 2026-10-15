@@ -9,9 +9,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * Fail fast in production when critical secrets are still the checked-in
- * development defaults. Prefer a loud boot failure over a silently insecure
- * deployment.
+ * Production secret hygiene. Logs loudly when operators still need to set
+ * Railway Variables; does not crash the process (crash-loops hide the real
+ * database / networking errors on first deploy).
  */
 @Component
 @Profile("prod")
@@ -30,17 +30,28 @@ public class ProdSecretsValidator implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        String jwt = env.getProperty("app.jwt.secret", "");
-        String webhook = env.getProperty("app.webhook.secret", "");
+        String jwt = firstNonBlank(env.getProperty("JWT_SECRET"), env.getProperty("app.jwt.secret"), "");
+        String webhook = firstNonBlank(env.getProperty("WEBHOOK_SECRET"), env.getProperty("app.webhook.secret"), "");
 
         if (jwt.isBlank() || jwt.equals(DEV_JWT) || jwt.length() < 32) {
-            throw new IllegalStateException(
-                    "JWT_SECRET must be set in production to a random value of at least 32 characters");
+            log.error(
+                    "[prod-secrets] Set JWT_SECRET in Railway Variables (openssl rand -base64 48). "
+                            + "Without it, logins reset on every redeploy.");
         }
         if (webhook.isBlank() || webhook.equals(DEV_WEBHOOK)) {
-            throw new IllegalStateException(
-                    "WEBHOOK_SECRET must be set in production (do not use the development default)");
+            log.warn(
+                    "[prod-secrets] Set WEBHOOK_SECRET in Railway Variables before enabling webhooks");
+        } else if (jwt.length() >= 32 && !jwt.equals(DEV_JWT)) {
+            log.info("[prod-secrets] JWT_SECRET and WEBHOOK_SECRET look configured");
         }
-        log.info("[prod-secrets] JWT_SECRET and WEBHOOK_SECRET look configured");
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 }

@@ -6,4 +6,8 @@ dockerfilePath = "Dockerfile"
 healthcheckPath = "/actuator/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
-startCommand = "java -jar /app/app.jar"
+# Let the image ENTRYPOINT run (java -jar /app/app.jar). Do not override.
+
+[variables]
+MESSAGING_MODE = "INLINE"
+WHATSAPP_MODE = "SANDBOX"
