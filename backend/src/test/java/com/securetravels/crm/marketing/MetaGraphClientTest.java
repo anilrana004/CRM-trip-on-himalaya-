@@ -104,6 +104,17 @@ class MetaGraphClientTest {
     }
 
     @Test
+    @DisplayName("META_GRAPH_BASE_URL rejects non-Meta hosts")
+    void rejectsUnsafeGraphBase() {
+        assertThatThrownBy(() -> MetaGraphClient.assertSafeGraphBase("https://evil.example/graph"))
+                .isInstanceOf(ServiceUnavailableException.class);
+        assertThatThrownBy(() -> MetaGraphClient.assertSafeGraphBase("http://graph.facebook.com"))
+                .isInstanceOf(ServiceUnavailableException.class);
+        MetaGraphClient.assertSafeGraphBase("https://graph.facebook.com");
+        MetaGraphClient.assertSafeGraphBase("http://127.0.0.1:8089");
+    }
+
+    @Test
     @DisplayName("retryable failure then success logs each attempt under one correlation id")
     void retriesShareCorrelationIdAndAreLoggedPerAttempt() {
         AppProperties props = new AppProperties();

@@ -32,6 +32,12 @@ import java.util.stream.Collectors;
 public class MetaMarketingService {
 
     private static final int MAX_PAGES = 20;
+    private static final int MAX_CURSOR_LEN = 512;
+    private static final java.util.regex.Pattern ACCOUNT_ID =
+            java.util.regex.Pattern.compile("^act_[0-9]+$");
+    private static final java.util.regex.Pattern ISO_DATE =
+            java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
+    private static final Set<String> INSIGHT_LEVELS = Set.of("campaign", "adset", "ad", "account");
     private static final String CAMPAIGN_FIELDS = "id,name,status,effective_status,objective,updated_time";
     private static final String INSIGHT_FIELDS =
             "campaign_id,campaign_name,impressions,clicks,spend,cpc,cpm,ctr,date_start,date_stop";
@@ -237,7 +243,11 @@ public class MetaMarketingService {
         query.put("fields", CAMPAIGN_FIELDS);
         query.put("limit", String.valueOf(pageSize));
         if (after != null && !after.isBlank()) {
-            query.put("after", after);
+            String cursor = after.trim();
+            if (cursor.length() > MAX_CURSOR_LEN || cursor.chars().anyMatch(Character::isWhitespace)) {
+                throw new BadRequestException("Invalid pagination cursor");
+            }
+            query.put("after", cursor);
         }
 
         JsonNode body = graph.get("campaigns.list", act, act + "/campaigns", query);
@@ -266,15 +276,23 @@ public class MetaMarketingService {
         if (hasRange && (notBlank(datePreset))) {
             throw new BadRequestException("Provide either datePreset or since/until, not both");
         }
+        if (hasRange && (!ISO_DATE.matcher(since.trim()).matches() || !ISO_DATE.matcher(until.trim()).matches())) {
+            throw new BadRequestException("since/until must be YYYY-MM-DD");
+        }
+
+        String resolvedLevel = level == null || level.isBlank() ? "campaign" : level.trim().toLowerCase(Locale.ROOT);
+        if (!INSIGHT_LEVELS.contains(resolvedLevel)) {
+            throw new BadRequestException("insights level must be one of: campaign, adset, ad, account");
+        }
 
         Map<String, String> query = new LinkedHashMap<>();
         query.put("fields", INSIGHT_FIELDS);
-        query.put("level", level == null || level.isBlank() ? "campaign" : level);
+        query.put("level", resolvedLevel);
         query.put("limit", "100");
         if (hasRange) {
-            query.put("time_range", "{\"since\":\"" + since + "\",\"until\":\"" + until + "\"}");
+            query.put("time_range", "{\"since\":\"" + since.trim() + "\",\"until\":\"" + until.trim() + "\"}");
         } else {
-            query.put("date_preset", notBlank(datePreset) ? datePreset : "last_7d");
+            query.put("date_preset", notBlank(datePreset) ? datePreset.trim() : "last_7d");
         }
 
         List<JsonNode> nodes = graph.getAllPages(
@@ -362,13 +380,16 @@ public class MetaMarketingService {
             return null;
         }
         String trimmed = raw.trim();
-        if (trimmed.toLowerCase(Locale.ROOT).startsWith("act_")) {
-            return "act_" + trimmed.substring(4);
+        String candidate;
+        if (trimmed.regionMatches(true, 0, "act_", 0, 4)) {
+            candidate = "act_" + trimmed.substring(4);
+        } else if (trimmed.chars().allMatch(Character::isDigit)) {
+            candidate = "act_" + trimmed;
+        } else {
+            return null;
         }
-        if (trimmed.chars().allMatch(Character::isDigit)) {
-            return "act_" + trimmed;
-        }
-        return trimmed;
+        // Reject path/query injection (e.g. act_1/../me) before any Graph path concat.
+        return ACCOUNT_ID.matcher(candidate).matches() ? candidate : null;
     }
 
     private static String stripAct(String id) {

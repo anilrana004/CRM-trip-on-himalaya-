@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -212,5 +213,24 @@ class MetaMarketingServiceTest {
         assertThatThrownBy(() -> service.listCampaigns("act_111", null, 10))
                 .isInstanceOf(ServiceUnavailableException.class)
                 .hasMessageContaining("META_ACCESS_TOKEN");
+    }
+
+    @Test
+    void rejectsPathInjectionInAccountId() {
+        assertThatThrownBy(() -> service.listCampaigns("act_111/../me", null, 10))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.listCampaigns("act_111/campaigns", null, 10))
+                .isInstanceOf(BadRequestException.class);
+        verify(graph, never()).get(anyString(), any(), anyString(), anyMap());
+    }
+
+    @Test
+    void insightsRejectsInvalidLevelAndDateShape() {
+        assertThatThrownBy(() -> service.insights("act_111", "last_7d", null, null, "not-a-level"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("level");
+        assertThatThrownBy(() -> service.insights("act_111", null, "01-01-2026", "2026-01-31", "campaign"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("YYYY-MM-DD");
     }
 }

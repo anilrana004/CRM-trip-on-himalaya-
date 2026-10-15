@@ -90,7 +90,7 @@ public class MetaLeadgenService {
                 }
                 JsonNode value = change.path("value");
                 String leadgenId = text(value, "leadgen_id");
-                if (leadgenId == null) {
+                if (leadgenId == null || !leadgenId.matches("[0-9A-Za-z_-]{1,64}")) {
                     continue;
                 }
                 processLeadgen(

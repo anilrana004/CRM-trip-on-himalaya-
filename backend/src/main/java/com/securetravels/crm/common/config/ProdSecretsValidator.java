@@ -52,6 +52,26 @@ public class ProdSecretsValidator implements ApplicationRunner {
             log.warn(
                     "[prod-secrets] META_ACCESS_TOKEN unset — Meta Ads/Campaigns APIs unavailable until configured");
         }
+
+        String allowlist = firstNonBlank(
+                env.getProperty("META_AD_ACCOUNT_IDS"),
+                env.getProperty("app.meta.ad-account-ids"),
+                "");
+        if (metaToken && allowlist.isBlank()) {
+            log.warn(
+                    "[prod-secrets] META_AD_ACCOUNT_IDS unset — any ad account visible to the system-user "
+                            + "token is readable by MANAGER/ADMIN/CEO; set an allowlist in production");
+        }
+
+        String cors = firstNonBlank(
+                env.getProperty("CORS_ALLOWED_ORIGINS"),
+                env.getProperty("app.cors.allowed-origins"),
+                "");
+        if (cors.contains("localhost") || cors.contains("127.0.0.1")) {
+            log.warn(
+                    "[prod-secrets] CORS_ALLOWED_ORIGINS still includes localhost/127.0.0.1 — "
+                            + "set it to your Vercel origin(s) in production");
+        }
     }
 
     private static boolean present(String value) {

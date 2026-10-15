@@ -48,7 +48,9 @@ public class MetaGraphClient {
         requireConfigured();
         String correlationId = UUID.randomUUID().toString();
         int attempts = 0;
-        int maxAttempts = Math.max(1, props.getMeta().getMaxRetries() + 1);
+        // Cap retries so a mis-set META_MAX_RETRIES cannot create unbounded Graph loops.
+        int retries = Math.min(Math.max(props.getMeta().getMaxRetries(), 0), 5);
+        int maxAttempts = retries + 1;
         MetaGraphException last = null;
 
         while (attempts < maxAttempts) {
@@ -127,11 +129,21 @@ public class MetaGraphClient {
 
     private URI buildUri(String relativePath, Map<String, String> query) {
         String base = trimSlash(props.getMeta().getGraphBaseUrl());
+        assertSafeGraphBase(base);
         String version = props.getMeta().getGraphVersion();
         if (version == null || version.isBlank()) {
             version = "v22.0";
         }
+        if (!version.matches("v\\d+\\.\\d+")) {
+            throw new ServiceUnavailableException("META_GRAPH_VERSION is invalid (expected like v22.0)");
+        }
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new MetaGraphException(400, "BAD_PATH", "Meta Graph path is required", false);
+        }
         String path = relativePath.startsWith("/") ? relativePath.substring(1) : relativePath;
+        if (path.contains("..") || path.contains("\\") || path.contains("://")) {
+            throw new MetaGraphException(400, "BAD_PATH", "Meta Graph path is invalid", false);
+        }
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(base + "/" + version + "/" + path)
                 .queryParam("access_token", props.getMeta().getAccessToken());
@@ -143,6 +155,32 @@ public class MetaGraphClient {
             });
         }
         return builder.encode().build().toUri();
+    }
+
+    /**
+     * Prevent accidental SSRF via META_GRAPH_BASE_URL (tests/prod should only
+     * hit Meta Graph hosts). Values never logged.
+     */
+    static void assertSafeGraphBase(String base) {
+        URI uri;
+        try {
+            uri = URI.create(base);
+        } catch (Exception ex) {
+            throw new ServiceUnavailableException("META_GRAPH_BASE_URL is invalid");
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        boolean https = "https".equals(scheme);
+        boolean metaHost = host.equals("graph.facebook.com")
+                || host.endsWith(".facebook.com")
+                || host.equals("graph.instagram.com");
+        // Local/mock hosts allowed for automated tests only (http loopback).
+        boolean loopbackHttp = "http".equals(scheme)
+                && (host.equals("127.0.0.1") || host.equals("localhost") || host.equals("::1"));
+        if (!(https && metaHost) && !loopbackHttp) {
+            throw new ServiceUnavailableException(
+                    "META_GRAPH_BASE_URL must be an https Meta Graph host (or http loopback for tests)");
+        }
     }
 
     private void record(String correlationId, String operation, String accountId,

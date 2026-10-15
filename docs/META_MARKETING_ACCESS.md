@@ -156,7 +156,22 @@ The Ad Channels panel must not imply Meta has approved the app.
 5. Re-read Meta’s current eligibility criteria; do not assume approval after
    calendar time alone.
 
-## 6. What we will not do
+## 6. Security hardening (Phase 8)
+
+| Control | Behaviour |
+|---|---|
+| CRM roles | `/api/marketing/meta/**` → MANAGER / ADMIN / CEO only |
+| Fail closed | Missing `META_ACCESS_TOKEN` → 503 on Ads Graph calls |
+| Allowlist | Prefer `META_AD_ACCOUNT_IDS` in production (prod boot warns if empty) |
+| Account id | Must match `act_[0-9]+` after normalize (blocks path injection) |
+| Insights inputs | Level allowlist; `since`/`until` must be `YYYY-MM-DD` |
+| Graph client | HTTPS Meta hosts only (http loopback for tests); `META_GRAPH_VERSION` like `v22.0`; retries capped at 5; connect/read timeouts from env |
+| Webhook | Signature + verify token; leadgen id charset/length check; payload size cap; rate limit |
+| Secrets | Never in Vercel/`NEXT_PUBLIC_*`; never logged; usage log metadata-only |
+| CORS | Prod should set `CORS_ALLOWED_ORIGINS` to Vercel origins (boot warns if localhost remains) |
+| Railway isolation | Meta config via env/`AppProperties` only — no Railway SDK in `marketing/` |
+
+## 7. What we will not do
 
 - Fake usage loops
 - Hardcoding personal explorer tokens
