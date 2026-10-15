@@ -1,19 +1,17 @@
 "use client";
 
 import { MANAGERS } from "@/lib/rbac";
-import { ModuleStub } from "@/components/ModuleStub";
+import { AdminPage } from "@/components/AdminPage";
+import { MetaCampaignsPanel } from "@/components/marketing/MetaCampaignsPanel";
 
 export default function CampaignsPage() {
   return (
-    <ModuleStub
+    <AdminPage
       title="Campaigns"
-      subtitle="Plan and measure trek promotion campaigns"
+      subtitle="Meta Ads campaigns and performance for authorized accounts"
       allowedRoles={MANAGERS}
-      bullets={[
-        "Segment leads by source in Leads Management (Instagram, Meta, Google, Website, Referral).",
-        "Compare campaign performance using the Source Performance chart on Leads.",
-        "Promote high-converting treks via Bookings and Trek catalogue.",
-      ]}
-    />
+    >
+      <MetaCampaignsPanel />
+    </AdminPage>
   );
 }

@@ -864,4 +864,71 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ key, value }),
     }),
+
+  /** ADR 0008 — Meta Marketing (server-side Graph proxy). */
+  listMetaAdAccounts: () => request<MetaAdAccount[]>("/api/marketing/meta/ad-accounts"),
+
+  listMetaCampaigns: (accountId: string, params?: { after?: string; limit?: number }) =>
+    request<MetaPage<MetaCampaign>>(
+      `/api/marketing/meta/ad-accounts/${encodeURIComponent(accountId)}/campaigns${qs({
+        after: params?.after,
+        limit: params?.limit ?? 25,
+      })}`,
+    ),
+
+  getMetaInsights: (
+    accountId: string,
+    params?: { datePreset?: string; since?: string; until?: string; level?: string },
+  ) =>
+    request<MetaInsights>(
+      `/api/marketing/meta/ad-accounts/${encodeURIComponent(accountId)}/insights${qs({
+        datePreset: params?.datePreset,
+        since: params?.since,
+        until: params?.until,
+        level: params?.level ?? "campaign",
+      })}`,
+    ),
+};
+
+export type MetaAdAccount = {
+  id: string;
+  name: string;
+  currency?: string | null;
+  accountStatus?: number | null;
+};
+
+export type MetaCampaign = {
+  id: string;
+  name: string;
+  status?: string | null;
+  effectiveStatus?: string | null;
+  objective?: string | null;
+  updatedTime?: string | null;
+};
+
+export type MetaPage<T> = {
+  data: T[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+};
+
+export type MetaInsightRow = {
+  campaignId?: string | null;
+  campaignName?: string | null;
+  impressions?: string | null;
+  clicks?: string | null;
+  spend?: string | null;
+  cpc?: string | null;
+  cpm?: string | null;
+  ctr?: string | null;
+  dateStart?: string | null;
+  dateStop?: string | null;
+};
+
+export type MetaInsights = {
+  accountId: string;
+  datePreset?: string | null;
+  since?: string | null;
+  until?: string | null;
+  rows: MetaInsightRow[];
 };

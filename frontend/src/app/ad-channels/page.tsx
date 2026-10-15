@@ -1,19 +1,17 @@
 "use client";
 
 import { MANAGERS } from "@/lib/rbac";
-import { ModuleStub } from "@/components/ModuleStub";
+import { AdminPage } from "@/components/AdminPage";
+import { MetaAdChannelsPanel } from "@/components/marketing/MetaAdChannelsPanel";
 
 export default function AdChannelsPage() {
   return (
-    <ModuleStub
+    <AdminPage
       title="Ad Channels"
-      subtitle="Instagram, Google Ads, Meta and WhatsApp intake"
+      subtitle="Connected Meta ad accounts and channel intake notes"
       allowedRoles={MANAGERS}
-      bullets={[
-        "Source tabs on Leads Management isolate each ad channel.",
-        "Webhook + WhatsApp hub capture paid and organic traffic.",
-        "Compare channel conversion in the Top Performing Campaigns panel.",
-      ]}
-    />
+    >
+      <MetaAdChannelsPanel />
+    </AdminPage>
   );
 }

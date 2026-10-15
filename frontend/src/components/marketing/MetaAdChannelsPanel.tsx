@@ -1,0 +1,148 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { api, formatApiError, type MetaAdAccount } from "@/lib/api";
+
+function statusLabel(status?: number | null) {
+  if (status == null) return "Unknown";
+  // Meta account_status: 1=ACTIVE, 2=DISABLED, 3=UNSETTLED, …
+  if (status === 1) return "Active";
+  if (status === 2) return "Disabled";
+  if (status === 3) return "Unsettled";
+  return `Status ${status}`;
+}
+
+export function MetaAdChannelsPanel() {
+  const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await api.listMetaAdAccounts();
+      setAccounts(list);
+      setSyncedAt(new Date().toISOString());
+    } catch (err) {
+      setError(formatApiError(err, "Could not load Meta ad accounts"));
+      setAccounts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-slate-900">Meta Ads</p>
+          <p className="text-xs text-slate-500">
+            Authorized ad accounts from the server-side Marketing API integration.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {syncedAt && (
+            <span className="text-xs text-slate-400">
+              Last sync {new Date(syncedAt).toLocaleString()}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+          <Link
+            href="/campaigns"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            Open campaigns
+          </Link>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-900">Connected ad accounts</h2>
+        </div>
+        {loading ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-500">Loading…</p>
+        ) : accounts.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-500">
+            No accounts yet. Configure Meta credentials on Railway, then refresh.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Account</th>
+                  <th className="px-4 py-2 font-medium">Currency</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((a) => (
+                  <tr key={a.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-slate-900">{a.name}</div>
+                      <div className="text-xs text-slate-400">{a.id}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-700">{a.currency || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-700">{statusLabel(a.accountStatus)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <Link
+                        href="/campaigns"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("toh_meta_ad_account", a.id);
+                          }
+                        }}
+                        className="text-sm font-medium text-emerald-700 hover:underline"
+                      >
+                        View campaigns
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+        <p className="font-medium text-slate-800">Other channels</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            Instagram / Meta lead volume still appears under{" "}
+            <Link href="/leads" className="font-medium text-emerald-700 hover:underline">
+              Leads
+            </Link>{" "}
+            by source (Lead Ads webhook lands in Phase D).
+          </li>
+          <li>Google Ads integration is not in this slice.</li>
+          <li>
+            Website intake continues via the existing HMAC webhook into Leads.
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
