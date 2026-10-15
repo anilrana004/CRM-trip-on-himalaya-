@@ -5,6 +5,7 @@ import com.securetravels.crm.common.exception.ForbiddenException;
 import com.securetravels.crm.common.exception.ServiceUnavailableException;
 import com.securetravels.crm.marketing.dto.MetaAdAccountResponse;
 import com.securetravels.crm.marketing.dto.MetaCampaignResponse;
+import com.securetravels.crm.marketing.dto.MetaDiagnosticsResponse;
 import com.securetravels.crm.marketing.dto.MetaInsightsResponse;
 import com.securetravels.crm.marketing.dto.MetaPageResponse;
 import com.securetravels.crm.marketing.dto.MetaUsageSummaryResponse;
@@ -67,6 +68,13 @@ public class MetaMarketingController {
             @RequestParam(defaultValue = "15") int days,
             @RequestParam(defaultValue = "50") int limit) {
         return marketing.usageSummary(days, limit);
+    }
+
+    @Operation(summary = "Safe Meta connectivity diagnostic (config flags + cheap Graph check)")
+    @GetMapping(value = "/diagnostics", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'CEO')")
+    public MetaDiagnosticsResponse diagnostics() {
+        return marketing.diagnostics();
     }
 
     private <T> T invoke(SupplierEx<T> action) {

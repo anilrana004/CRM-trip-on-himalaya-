@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, formatApiError, type MetaAdAccount, type MetaUsageSummary } from "@/lib/api";
+import {
+  api,
+  formatApiError,
+  type MetaAdAccount,
+  type MetaDiagnostics,
+  type MetaUsageSummary,
+} from "@/lib/api";
 
 function statusLabel(status?: number | null) {
   if (status == null) return "Unknown";
@@ -16,6 +22,8 @@ function statusLabel(status?: number | null) {
 export function MetaAdChannelsPanel() {
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const [usage, setUsage] = useState<MetaUsageSummary | null>(null);
+  const [diagnostics, setDiagnostics] = useState<MetaDiagnostics | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
@@ -66,6 +74,24 @@ export function MetaAdChannelsPanel() {
           >
             Refresh
           </button>
+          <button
+            type="button"
+            disabled={diagBusy}
+            onClick={async () => {
+              setDiagBusy(true);
+              setError(null);
+              try {
+                setDiagnostics(await api.getMetaDiagnostics());
+              } catch (err) {
+                setError(formatApiError(err, "Diagnostics failed"));
+              } finally {
+                setDiagBusy(false);
+              }
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {diagBusy ? "Checking…" : "Run Meta diagnostic"}
+          </button>
           <Link
             href="/campaigns"
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
@@ -79,6 +105,34 @@ export function MetaAdChannelsPanel() {
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
+      )}
+
+      {diagnostics && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-semibold text-slate-900">Meta diagnostic</h2>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                diagnostics.status === "OK"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-amber-50 text-amber-900"
+              }`}
+            >
+              {diagnostics.status}
+            </span>
+          </div>
+          <p className="mt-2 text-slate-700">{diagnostics.message}</p>
+          <dl className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+            <div>Access token: {diagnostics.config.accessTokenSet ? "set" : "missing"}</div>
+            <div>App secret: {diagnostics.config.appSecretSet ? "set" : "missing"}</div>
+            <div>Webhook verify token: {diagnostics.config.webhookVerifyTokenSet ? "set" : "missing"}</div>
+            <div>Webhook config ready: {diagnostics.webhookConfigReady ? "yes" : "no"}</div>
+            <div>Graph version: {diagnostics.graphVersion}</div>
+            <div>Visible ad accounts (sample): {diagnostics.visibleAdAccountCount ?? "—"}</div>
+            <div>Graph user id: {diagnostics.graphUserId || "—"}</div>
+            <div>Allowlist configured: {diagnostics.config.adAccountAllowlistSet ? "yes" : "no"}</div>
+          </dl>
+        </section>
       )}
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">

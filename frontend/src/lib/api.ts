@@ -891,6 +891,8 @@ export const api = {
 
   getMetaUsage: (days = 15, limit = 50) =>
     request<MetaUsageSummary>(`/api/marketing/meta/usage${qs({ days, limit })}`),
+
+  getMetaDiagnostics: () => request<MetaDiagnostics>("/api/marketing/meta/diagnostics"),
 };
 
 export type MetaAdAccount = {
@@ -953,4 +955,27 @@ export type MetaUsageSummary = {
   failureCount: number;
   window: { from: string; to: string };
   recent: MetaApiCallLogRow[];
+};
+
+export type MetaDiagnostics = {
+  config: {
+    accessTokenSet: boolean;
+    appSecretSet: boolean;
+    webhookVerifyTokenSet: boolean;
+    appIdSet: boolean;
+    adAccountAllowlistSet: boolean;
+  };
+  status:
+    | "CONFIG_MISSING"
+    | "AUTH_FAILURE"
+    | "PERMISSION_FAILURE"
+    | "ACCOUNT_INACCESSIBLE"
+    | "RATE_LIMITED"
+    | "UNAVAILABLE"
+    | "OK";
+  message: string;
+  graphVersion: string;
+  graphUserId?: string | null;
+  visibleAdAccountCount?: number | null;
+  webhookConfigReady: boolean;
 };

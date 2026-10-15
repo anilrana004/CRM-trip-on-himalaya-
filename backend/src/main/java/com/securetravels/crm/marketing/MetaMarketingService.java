@@ -8,6 +8,7 @@ import com.securetravels.crm.common.exception.ServiceUnavailableException;
 import com.securetravels.crm.marketing.dto.MetaAdAccountResponse;
 import com.securetravels.crm.marketing.dto.MetaApiCallLogResponse;
 import com.securetravels.crm.marketing.dto.MetaCampaignResponse;
+import com.securetravels.crm.marketing.dto.MetaDiagnosticsResponse;
 import com.securetravels.crm.marketing.dto.MetaInsightsResponse;
 import com.securetravels.crm.marketing.dto.MetaPageResponse;
 import com.securetravels.crm.marketing.dto.MetaUsageSummaryResponse;
@@ -46,6 +47,127 @@ public class MetaMarketingService {
         this.accounts = accounts;
         this.callLogs = callLogs;
         this.props = props;
+    }
+
+    /**
+     * Cheap, non-mutating connectivity check for operators. At most two Graph
+     * GETs ({@code me}, {@code me/adaccounts?limit=1} or one allowlisted account).
+     */
+    public MetaDiagnosticsResponse diagnostics() {
+        AppProperties.Meta meta = props.getMeta();
+        var flags = new MetaDiagnosticsResponse.ConfigFlags(
+                present(meta.getAccessToken()),
+                present(meta.getAppSecret()),
+                present(meta.getWebhookVerifyToken()),
+                present(meta.getAppId()),
+                present(meta.getAdAccountIds()));
+        boolean webhookReady = flags.appSecretSet() && flags.webhookVerifyTokenSet();
+        String version = present(meta.getGraphVersion()) ? meta.getGraphVersion().trim() : "v22.0";
+
+        if (!flags.accessTokenSet()) {
+            return new MetaDiagnosticsResponse(
+                    flags,
+                    MetaDiagnosticsResponse.ConnectivityStatus.CONFIG_MISSING,
+                    "META_ACCESS_TOKEN is not set on the server. Configure it in Railway Variables.",
+                    version,
+                    null,
+                    null,
+                    webhookReady);
+        }
+
+        try {
+            JsonNode me = graph.get("diagnostics.me", null, "me", Map.of("fields", "id"));
+            String graphUserId = textOrNull(me, "id");
+
+            int visible;
+            Set<String> allow = configuredAllowlist();
+            if (!allow.isEmpty()) {
+                String sample = allow.iterator().next();
+                graph.get("diagnostics.adaccount", sample, sample, Map.of("fields", "id,name"));
+                visible = allow.size();
+            } else {
+                JsonNode accountsPage = graph.get(
+                        "diagnostics.adaccounts",
+                        null,
+                        "me/adaccounts",
+                        Map.of("fields", "id", "limit", "5"));
+                visible = 0;
+                if (accountsPage.path("data").isArray()) {
+                    visible = accountsPage.path("data").size();
+                }
+            }
+
+            String message = visible == 0
+                    ? "Token authenticated, but no ad accounts were visible. Check Business asset assignment / META_AD_ACCOUNT_IDS."
+                    : "Meta Graph connectivity OK. Token can see ad account data.";
+            var status = visible == 0
+                    ? MetaDiagnosticsResponse.ConnectivityStatus.ACCOUNT_INACCESSIBLE
+                    : MetaDiagnosticsResponse.ConnectivityStatus.OK;
+
+            return new MetaDiagnosticsResponse(
+                    flags, status, message, version, graphUserId, visible, webhookReady);
+        } catch (MetaGraphException ex) {
+            return new MetaDiagnosticsResponse(
+                    flags,
+                    classify(ex),
+                    actionable(ex),
+                    version,
+                    null,
+                    null,
+                    webhookReady);
+        } catch (ServiceUnavailableException ex) {
+            return new MetaDiagnosticsResponse(
+                    flags,
+                    MetaDiagnosticsResponse.ConnectivityStatus.CONFIG_MISSING,
+                    ex.getMessage(),
+                    version,
+                    null,
+                    null,
+                    webhookReady);
+        }
+    }
+
+    private static MetaDiagnosticsResponse.ConnectivityStatus classify(MetaGraphException ex) {
+        int http = ex.httpStatus();
+        String code = ex.errorCode() == null ? "" : ex.errorCode();
+        if (http == 429 || code.contains(":4") || code.contains(":17") || code.contains(":32")) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.RATE_LIMITED;
+        }
+        if (http == 401 || code.contains("190") || code.contains("OAuthException")) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.AUTH_FAILURE;
+        }
+        if (http == 403 || code.contains("10") || code.contains("200") || code.contains("294")) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.PERMISSION_FAILURE;
+        }
+        if (http == 400 && (code.contains("100") || code.contains("803"))) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.ACCOUNT_INACCESSIBLE;
+        }
+        if (ex.retryable() || http >= 500 || "TRANSPORT".equals(code) || code.startsWith("TRANSPORT")) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.UNAVAILABLE;
+        }
+        if (http == 400 || http == 404) {
+            return MetaDiagnosticsResponse.ConnectivityStatus.ACCOUNT_INACCESSIBLE;
+        }
+        return MetaDiagnosticsResponse.ConnectivityStatus.UNAVAILABLE;
+    }
+
+    private static String actionable(MetaGraphException ex) {
+        return switch (classify(ex)) {
+            case AUTH_FAILURE ->
+                    "Meta rejected the access token (expired, revoked, or invalid). Rotate META_ACCESS_TOKEN on Railway.";
+            case PERMISSION_FAILURE ->
+                    "Meta token lacks required permissions or Business asset access. Grant ads_read / ads_management as needed and assign ad accounts.";
+            case ACCOUNT_INACCESSIBLE ->
+                    "Ad account not reachable with this token. Check META_AD_ACCOUNT_IDS and Business Manager assignments.";
+            case RATE_LIMITED ->
+                    "Meta rate-limited the diagnostic call. Wait and retry; do not loop.";
+            case UNAVAILABLE ->
+                    "Meta Graph was unreachable or returned a transient error. Retry later.";
+            case CONFIG_MISSING ->
+                    "META_ACCESS_TOKEN is not configured.";
+            case OK ->
+                    "OK";
+        };
     }
 
     @Transactional(readOnly = true)
@@ -278,5 +400,9 @@ public class MetaMarketingService {
 
     private static boolean isBlank(String v) {
         return v == null || v.isBlank();
+    }
+
+    private static boolean present(String v) {
+        return v != null && !v.isBlank();
     }
 }

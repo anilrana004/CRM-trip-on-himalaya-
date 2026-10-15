@@ -26,12 +26,17 @@ Never put Meta secrets on Vercel. Frontend only needs `API_PROXY_TARGET`.
 
 Sign in as MANAGER / ADMIN / CEO on the CRM:
 
-1. **Ad Channels** → authorized accounts load.
-2. **Campaigns** → list campaigns; change insights preset; refresh.
-3. Confirm `GET /api/marketing/meta/usage?days=15` shows successful
-   `adaccounts.list` / `campaigns.list` / `insights.list` rows.
-4. (Optional) Submit a test Lead Ad → webhook creates a CRM lead; duplicate
+1. **Ad Channels** → **Run Meta diagnostic** (or `GET /api/marketing/meta/diagnostics`).
+   Expect `status=OK` and `accessToken=set`. No secrets are returned.
+2. **Ad Channels** → authorized accounts load.
+3. **Campaigns** → list campaigns; change insights preset; refresh.
+4. Confirm `GET /api/marketing/meta/usage?days=15` shows successful
+   `diagnostics.*` / `adaccounts.list` / `campaigns.list` / `insights.list` rows.
+5. (Optional) Submit a test Lead Ad → webhook creates a CRM lead; duplicate
    delivery does not create a second lead.
+
+Diagnostic statuses: `CONFIG_MISSING`, `AUTH_FAILURE`, `PERMISSION_FAILURE`,
+`ACCOUNT_INACCESSIBLE`, `RATE_LIMITED`, `UNAVAILABLE`, `OK`.
 
 ## 3. Webhook (only after public HTTPS)
 
