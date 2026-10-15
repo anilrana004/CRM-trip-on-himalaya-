@@ -52,7 +52,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if (!request.getMethod().equalsIgnoreCase("POST")) return null;
         String uri = request.getRequestURI();
         if (uri.equals("/api/auth/login")) return "login";
-        if (uri.equals("/api/webhook/lead")) return "webhook";
+        if (uri.equals("/api/webhook/lead") || uri.equals("/api/webhook/meta")) return "webhook";
         return null;
     }
 

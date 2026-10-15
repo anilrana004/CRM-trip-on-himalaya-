@@ -98,6 +98,40 @@ public class LeadService {
         return createInternal(request, ownerId, null);
     }
 
+    /**
+     * Meta Lead Ads path (ADR 0008). Idempotent on {@code metaLeadId}; phone
+     * collisions return the existing active lead (soft duplicate) rather than
+     * 409, matching website webhook behaviour.
+     */
+    @Transactional
+    public LeadIngestResult createFromMeta(LeadCreateRequest request, UUID ownerId, String metaLeadId) {
+        if (metaLeadId == null || metaLeadId.isBlank()) {
+            throw new BadRequestException("metaLeadId is required");
+        }
+        Optional<Lead> byMeta = leads.findByMetaLeadId(metaLeadId);
+        if (byMeta.isPresent()) {
+            return new LeadIngestResult(toResponse(byMeta.get()), true);
+        }
+
+        String digits = normalizedDigits(request.mobileNumber());
+        Lead phoneDup = leads.findFirstActiveDuplicate(digits).orElse(null);
+        if (phoneDup != null) {
+            if (phoneDup.getMetaLeadId() == null || phoneDup.getMetaLeadId().isBlank()) {
+                phoneDup.setMetaLeadId(metaLeadId);
+                leads.save(phoneDup);
+            }
+            return new LeadIngestResult(toResponse(phoneDup), true);
+        }
+
+        LeadResponse created = createInternal(request, ownerId, null);
+        Lead saved = leads.findById(created.id()).orElseThrow();
+        saved.setMetaLeadId(metaLeadId);
+        leads.save(saved);
+        return new LeadIngestResult(toResponse(saved), false);
+    }
+
+    public record LeadIngestResult(LeadResponse lead, boolean duplicate) {}
+
     private LeadResponse createInternal(LeadCreateRequest request, UUID ownerId, UUID createdBy) {
         // DPDPA: explicit consent is mandatory to hold a prospect's PII.
         if (request.consentGiven() == null || !request.consentGiven()) {

@@ -24,6 +24,8 @@ public interface LeadRepository extends JpaRepository<Lead, UUID> {
             """)
     Optional<Lead> findFirstActiveDuplicate(@Param("digits") String digits);
 
+    Optional<Lead> findByMetaLeadId(String metaLeadId);
+
     /**
      * Filtered listing. All parameters are optional; the SQL is assembled to
      * use the (owner_id, status, created_at) index when scoping by owner.
