@@ -24,6 +24,7 @@ public class AppProperties {
     private final Automation automation = new Automation();
     private final FeatureFlags featureFlags = new FeatureFlags();
     private final Commission commission = new Commission();
+    private final Meta meta = new Meta();
     private boolean bootstrapDemoData = true;
 
     public Jwt getJwt() { return jwt; }
@@ -40,6 +41,7 @@ public class AppProperties {
     public Automation getAutomation() { return automation; }
     public FeatureFlags getFeatureFlags() { return featureFlags; }
     public Commission getCommission() { return commission; }
+    public Meta getMeta() { return meta; }
     public boolean isBootstrapDemoData() { return bootstrapDemoData; }
     public void setBootstrapDemoData(boolean bootstrapDemoData) { this.bootstrapDemoData = bootstrapDemoData; }
 
@@ -401,6 +403,49 @@ public class AppProperties {
         public BigDecimal getDefaultTravelAgentPercent() { return defaultTravelAgentPercent; }
         public void setDefaultTravelAgentPercent(BigDecimal defaultTravelAgentPercent) {
             this.defaultTravelAgentPercent = defaultTravelAgentPercent;
+        }
+    }
+
+    /**
+     * ADR 0008 — Meta Marketing / Graph API. All secrets stay server-side.
+     * Empty access-token means the marketing endpoints fail closed with 503.
+     */
+    public static class Meta {
+        private String appId = "";
+        private String appSecret = "";
+        private String accessToken = "";
+        private String graphBaseUrl = "https://graph.facebook.com";
+        private String graphVersion = "v22.0";
+        /** Comma-separated act_… or numeric ids; empty = trust Graph discovery. */
+        private String adAccountIds = "";
+        private String webhookVerifyToken = "";
+        private Duration connectTimeout = Duration.ofSeconds(5);
+        private Duration readTimeout = Duration.ofSeconds(20);
+        private int maxRetries = 2;
+
+        public String getAppId() { return appId; }
+        public void setAppId(String appId) { this.appId = appId; }
+        public String getAppSecret() { return appSecret; }
+        public void setAppSecret(String appSecret) { this.appSecret = appSecret; }
+        public String getAccessToken() { return accessToken; }
+        public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+        public String getGraphBaseUrl() { return graphBaseUrl; }
+        public void setGraphBaseUrl(String graphBaseUrl) { this.graphBaseUrl = graphBaseUrl; }
+        public String getGraphVersion() { return graphVersion; }
+        public void setGraphVersion(String graphVersion) { this.graphVersion = graphVersion; }
+        public String getAdAccountIds() { return adAccountIds; }
+        public void setAdAccountIds(String adAccountIds) { this.adAccountIds = adAccountIds; }
+        public String getWebhookVerifyToken() { return webhookVerifyToken; }
+        public void setWebhookVerifyToken(String webhookVerifyToken) { this.webhookVerifyToken = webhookVerifyToken; }
+        public Duration getConnectTimeout() { return connectTimeout; }
+        public void setConnectTimeout(Duration connectTimeout) { this.connectTimeout = connectTimeout; }
+        public Duration getReadTimeout() { return readTimeout; }
+        public void setReadTimeout(Duration readTimeout) { this.readTimeout = readTimeout; }
+        public int getMaxRetries() { return maxRetries; }
+        public void setMaxRetries(int maxRetries) { this.maxRetries = maxRetries; }
+
+        public boolean configured() {
+            return accessToken != null && !accessToken.isBlank();
         }
     }
 }

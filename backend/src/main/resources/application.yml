@@ -135,6 +135,18 @@ app:
     # Phase 7 Module 1 — flat travel-agent rate until Module 4 ships per-plan
     # commission tiers.
     default-travel-agent-percent: ${COMMISSION_DEFAULT_TRAVEL_AGENT_PERCENT:10.00}
+  meta:
+    # ADR 0008 — Marketing / Lead Ads. Secrets only on the server (Railway).
+    app-id: ${META_APP_ID:}
+    app-secret: ${META_APP_SECRET:}
+    access-token: ${META_ACCESS_TOKEN:}
+    graph-base-url: ${META_GRAPH_BASE_URL:https://graph.facebook.com}
+    graph-version: ${META_GRAPH_VERSION:v22.0}
+    ad-account-ids: ${META_AD_ACCOUNT_IDS:}
+    webhook-verify-token: ${META_WEBHOOK_VERIFY_TOKEN:}
+    connect-timeout: ${META_CONNECT_TIMEOUT:5s}
+    read-timeout: ${META_READ_TIMEOUT:20s}
+    max-retries: ${META_MAX_RETRIES:2}
 
 management:
   endpoints:
