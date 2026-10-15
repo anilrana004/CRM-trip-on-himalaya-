@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, formatApiError, type MetaAdAccount } from "@/lib/api";
+import { api, formatApiError, type MetaAdAccount, type MetaUsageSummary } from "@/lib/api";
 
 function statusLabel(status?: number | null) {
   if (status == null) return "Unknown";
@@ -15,6 +15,7 @@ function statusLabel(status?: number | null) {
 
 export function MetaAdChannelsPanel() {
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
+  const [usage, setUsage] = useState<MetaUsageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
@@ -23,8 +24,12 @@ export function MetaAdChannelsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const list = await api.listMetaAdAccounts();
+      const [list, usageSummary] = await Promise.all([
+        api.listMetaAdAccounts(),
+        api.getMetaUsage(15, 20).catch(() => null),
+      ]);
       setAccounts(list);
+      setUsage(usageSummary);
       setSyncedAt(new Date().toISOString());
     } catch (err) {
       setError(formatApiError(err, "Could not load Meta ad accounts"));
@@ -126,6 +131,55 @@ export function MetaAdChannelsPanel() {
           </div>
         )}
       </section>
+
+      {usage && (
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">Ads API usage (15 days)</h2>
+            <p className="text-xs text-slate-500">
+              Operational metadata only — for Standard Access evidence. No tokens or lead fields.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-6 px-4 py-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Successful</div>
+              <div className="text-lg font-semibold text-emerald-700">{usage.successCount}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">Failed</div>
+              <div className="text-lg font-semibold text-slate-800">{usage.failureCount}</div>
+            </div>
+          </div>
+          {usage.recent.length > 0 && (
+            <div className="overflow-x-auto border-t border-slate-100">
+              <table className="min-w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">When</th>
+                    <th className="px-4 py-2 font-medium">Operation</th>
+                    <th className="px-4 py-2 font-medium">Account</th>
+                    <th className="px-4 py-2 font-medium">HTTP</th>
+                    <th className="px-4 py-2 font-medium">OK</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usage.recent.map((row) => (
+                    <tr key={row.id} className="border-t border-slate-100">
+                      <td className="px-4 py-2 text-slate-600">
+                        {new Date(row.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 font-medium text-slate-800">{row.operation}</td>
+                      <td className="px-4 py-2 text-slate-600">{row.accountId || "—"}</td>
+                      <td className="px-4 py-2 text-slate-600">{row.httpStatus ?? "—"}</td>
+                      <td className="px-4 py-2">{row.success ? "yes" : "no"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
         <p className="font-medium text-slate-800">Other channels</p>

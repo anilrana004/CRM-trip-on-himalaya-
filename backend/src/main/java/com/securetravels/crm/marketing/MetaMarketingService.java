@@ -6,12 +6,17 @@ import com.securetravels.crm.common.exception.BadRequestException;
 import com.securetravels.crm.common.exception.ForbiddenException;
 import com.securetravels.crm.common.exception.ServiceUnavailableException;
 import com.securetravels.crm.marketing.dto.MetaAdAccountResponse;
+import com.securetravels.crm.marketing.dto.MetaApiCallLogResponse;
 import com.securetravels.crm.marketing.dto.MetaCampaignResponse;
 import com.securetravels.crm.marketing.dto.MetaInsightsResponse;
 import com.securetravels.crm.marketing.dto.MetaPageResponse;
+import com.securetravels.crm.marketing.dto.MetaUsageSummaryResponse;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -32,12 +37,41 @@ public class MetaMarketingService {
 
     private final MetaGraphClient graph;
     private final MetaAdAccountRepository accounts;
+    private final MetaApiCallLogRepository callLogs;
     private final AppProperties props;
 
-    public MetaMarketingService(MetaGraphClient graph, MetaAdAccountRepository accounts, AppProperties props) {
+    public MetaMarketingService(MetaGraphClient graph, MetaAdAccountRepository accounts,
+                                MetaApiCallLogRepository callLogs, AppProperties props) {
         this.graph = graph;
         this.accounts = accounts;
+        this.callLogs = callLogs;
         this.props = props;
+    }
+
+    @Transactional(readOnly = true)
+    public MetaUsageSummaryResponse usageSummary(int days, int limit) {
+        int windowDays = Math.min(Math.max(days, 1), 90);
+        int rowLimit = Math.min(Math.max(limit, 1), 100);
+        Instant from = Instant.now().minus(windowDays, ChronoUnit.DAYS);
+        Instant to = Instant.now();
+        long ok = callLogs.countSince(from, true);
+        long fail = callLogs.countSince(from, false);
+        List<MetaApiCallLogResponse> recent = callLogs
+                .findByCreatedAtGreaterThanEqualOrderByCreatedAtDesc(from, PageRequest.of(0, rowLimit))
+                .stream()
+                .map(l -> new MetaApiCallLogResponse(
+                        l.getId(),
+                        l.getCorrelationId(),
+                        l.getOperation(),
+                        l.getAccountId(),
+                        l.getGraphVersion(),
+                        l.getHttpStatus(),
+                        l.isSuccess(),
+                        l.getErrorCode(),
+                        l.getCreatedAt()))
+                .toList();
+        return new MetaUsageSummaryResponse(
+                ok, fail, new MetaUsageSummaryResponse.InstantWindow(from, to), recent);
     }
 
     @Transactional

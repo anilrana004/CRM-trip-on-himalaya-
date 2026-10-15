@@ -9,14 +9,16 @@ import com.securetravels.crm.common.exception.ForbiddenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,6 +33,7 @@ class MetaMarketingServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private MetaGraphClient graph;
     private MetaAdAccountRepository accounts;
+    private MetaApiCallLogRepository callLogs;
     private AppProperties props;
     private MetaMarketingService service;
 
@@ -38,10 +41,11 @@ class MetaMarketingServiceTest {
     void setUp() {
         graph = mock(MetaGraphClient.class);
         accounts = mock(MetaAdAccountRepository.class);
+        callLogs = mock(MetaApiCallLogRepository.class);
         props = new AppProperties();
         props.getMeta().setAccessToken("token");
         props.getMeta().setAdAccountIds("act_111");
-        service = new MetaMarketingService(graph, accounts, props);
+        service = new MetaMarketingService(graph, accounts, callLogs, props);
         when(accounts.findByMetaAccountId(anyString())).thenReturn(Optional.empty());
         when(accounts.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -79,6 +83,23 @@ class MetaMarketingServiceTest {
     void insightsRejectsPartialDateRange() {
         assertThatThrownBy(() -> service.insights("act_111", null, "2026-01-01", null, "campaign"))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void usageSummaryReturnsSanitizedRows() {
+        MetaApiCallLog row = new MetaApiCallLog(
+                "c1", "campaigns.list", "act_111", "v22.0", 200, true, null);
+        when(callLogs.countSince(any(Instant.class), eq(true))).thenReturn(3L);
+        when(callLogs.countSince(any(Instant.class), eq(false))).thenReturn(1L);
+        when(callLogs.findByCreatedAtGreaterThanEqualOrderByCreatedAtDesc(any(Instant.class), any()))
+                .thenReturn(List.of(row));
+
+        var summary = service.usageSummary(15, 50);
+        assertThat(summary.successCount()).isEqualTo(3);
+        assertThat(summary.failureCount()).isEqualTo(1);
+        assertThat(summary.recent()).hasSize(1);
+        assertThat(summary.recent().get(0).operation()).isEqualTo("campaigns.list");
+        assertThat(summary.recent().get(0).correlationId()).isEqualTo("c1");
     }
 
     @Test

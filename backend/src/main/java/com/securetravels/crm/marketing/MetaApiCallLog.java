@@ -58,5 +58,10 @@ public class MetaApiCallLog {
     public UUID getId() { return id; }
     public String getCorrelationId() { return correlationId; }
     public String getOperation() { return operation; }
+    public String getAccountId() { return accountId; }
+    public String getGraphVersion() { return graphVersion; }
+    public Integer getHttpStatus() { return httpStatus; }
     public boolean isSuccess() { return success; }
+    public String getErrorCode() { return errorCode; }
+    public Instant getCreatedAt() { return createdAt; }
 }

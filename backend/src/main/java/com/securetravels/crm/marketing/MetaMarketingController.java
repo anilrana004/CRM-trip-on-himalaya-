@@ -7,6 +7,7 @@ import com.securetravels.crm.marketing.dto.MetaAdAccountResponse;
 import com.securetravels.crm.marketing.dto.MetaCampaignResponse;
 import com.securetravels.crm.marketing.dto.MetaInsightsResponse;
 import com.securetravels.crm.marketing.dto.MetaPageResponse;
+import com.securetravels.crm.marketing.dto.MetaUsageSummaryResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.MediaType;
@@ -57,6 +58,15 @@ public class MetaMarketingController {
             @RequestParam(required = false) String until,
             @RequestParam(required = false, defaultValue = "campaign") String level) {
         return invoke(() -> marketing.insights(accountId, datePreset, since, until, level));
+    }
+
+    @Operation(summary = "Sanitized Meta Ads API usage log (Standard Access evidence)")
+    @GetMapping(value = "/usage", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'CEO')")
+    public MetaUsageSummaryResponse usage(
+            @RequestParam(defaultValue = "15") int days,
+            @RequestParam(defaultValue = "50") int limit) {
+        return marketing.usageSummary(days, limit);
     }
 
     private <T> T invoke(SupplierEx<T> action) {

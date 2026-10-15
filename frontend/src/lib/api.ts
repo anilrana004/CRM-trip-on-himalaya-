@@ -888,6 +888,9 @@ export const api = {
         level: params?.level ?? "campaign",
       })}`,
     ),
+
+  getMetaUsage: (days = 15, limit = 50) =>
+    request<MetaUsageSummary>(`/api/marketing/meta/usage${qs({ days, limit })}`),
 };
 
 export type MetaAdAccount = {
@@ -931,4 +934,23 @@ export type MetaInsights = {
   since?: string | null;
   until?: string | null;
   rows: MetaInsightRow[];
+};
+
+export type MetaApiCallLogRow = {
+  id: string;
+  correlationId: string;
+  operation: string;
+  accountId?: string | null;
+  graphVersion: string;
+  httpStatus?: number | null;
+  success: boolean;
+  errorCode?: string | null;
+  createdAt: string;
+};
+
+export type MetaUsageSummary = {
+  successCount: number;
+  failureCount: number;
+  window: { from: string; to: string };
+  recent: MetaApiCallLogRow[];
 };

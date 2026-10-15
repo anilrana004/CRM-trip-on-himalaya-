@@ -21,7 +21,7 @@ before any work starts.
 | 7 | **RabbitMQ** | Durable queue for outbound WhatsApp delivery | **Built** (optional) | 4 | `app.messaging.mode=BROKER`; publish failure falls back inline. ADR 0005 supersedes 0003 |
 | 8 | **OpenSearch** | Search/analytics store | Not Started | 3 | reporting suite reads land here |
 | 9 | **Prometheus + Grafana** | Metrics & alerting | Not Started | 3 | actuator `/actuator/prometheus` exposure planned |
-| 10 | **Meta (Facebook/Instagram) Ads + Lead Forms** | Ads management, lead-form webhooks, attribution | **In Progress** | 5 | ADR 0008; Graph read APIs + `POST/GET /api/webhook/meta` leadgen; map to `leads` + `meta_*` tables. Page subscription still an ops step once Railway HTTPS is live. |
+| 10 | **Meta (Facebook/Instagram) Ads + Lead Forms** | Ads management, lead-form webhooks, attribution | **Built** (pending live credentials + Page webhook subscribe) | 5 | ADR 0008; Graph read APIs + `/api/webhook/meta` + usage log; see `docs/META_MARKETING_ACCESS.md` |
 | 11 | **Google Ads** | Ads + click/conversion attribution | Not Started | 5 | marketing module |
 | 12 | **Tally / Zoho Books** | GST books sync, invoices | Not Started | 9 | finance module |
 | 13 | **Keycloak / enterprise IAM** | SSO, ABAC | Not Started | 4 | replaces in-app JWT at that phase |
