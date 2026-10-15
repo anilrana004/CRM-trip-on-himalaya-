@@ -71,7 +71,19 @@ Table `meta_api_call_log` stores only:
 - timestamp, operation, account id, HTTP status, success, error code, graph version, correlation id
 
 It must **never** store access tokens, app secrets, or lead field values.
-CRM UI exposes a sanitized summary at `/api/marketing/meta/usage`.
+CRM UI exposes a sanitized summary at `GET /api/marketing/meta/usage` (default
+`days=15`, max 90). Counts are **CRM → Graph HTTP attempts** written when an
+authorized operator uses diagnostics / ad accounts / campaigns / insights —
+not fabricated rows and not Meta’s own review clock.
+
+**Retries:** transient failures (429 / 5xx) retry up to `META_MAX_RETRIES`.
+Each attempt is a separate log row; attempts for one logical call share the
+same `correlation_id`. Success and failure totals therefore include retries.
+
+**Roles:** MANAGER / ADMIN / CEO only. SALES receives 403. Reading usage does
+**not** require `META_ACCESS_TOKEN` (it is CRM metadata).
+
+The Ad Channels panel must not imply Meta has approved the app.
 
 ## 5. Before re-applying for Standard Access
 

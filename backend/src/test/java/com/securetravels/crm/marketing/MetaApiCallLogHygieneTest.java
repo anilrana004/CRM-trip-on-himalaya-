@@ -1,8 +1,10 @@
 package com.securetravels.crm.marketing;
 
+import com.securetravels.crm.marketing.dto.MetaApiCallLogResponse;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -31,14 +33,18 @@ class MetaApiCallLogHygieneTest {
                 .collect(Collectors.toSet());
 
         assertThat(names).isEqualTo(EXPECTED);
+        assertNoForbiddenFragments(names);
+    }
 
-        for (String name : names) {
-            for (String forbidden : FORBIDDEN_FRAGMENTS) {
-                assertThat(name)
-                        .as("column %s must not look like sensitive storage", name)
-                        .doesNotContain(forbidden);
-            }
-        }
+    @Test
+    void apiResponseDtoStaysOperationalMetadataOnly() {
+        Set<String> names = Arrays.stream(MetaApiCallLogResponse.class.getRecordComponents())
+                .map(RecordComponent::getName)
+                .map(n -> n.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+
+        assertThat(names).isEqualTo(EXPECTED);
+        assertNoForbiddenFragments(names);
     }
 
     @Test
@@ -50,5 +56,15 @@ class MetaApiCallLogHygieneTest {
         assertThat(row.getAccountId()).isEqualTo("act_1");
         assertThat(row.isSuccess()).isTrue();
         assertThat(row.getErrorCode()).isNull();
+    }
+
+    private static void assertNoForbiddenFragments(Set<String> names) {
+        for (String name : names) {
+            for (String forbidden : FORBIDDEN_FRAGMENTS) {
+                assertThat(name)
+                        .as("column %s must not look like sensitive storage", name)
+                        .doesNotContain(forbidden);
+            }
+        }
     }
 }

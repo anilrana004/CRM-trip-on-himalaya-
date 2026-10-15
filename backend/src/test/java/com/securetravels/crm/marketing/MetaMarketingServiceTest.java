@@ -101,6 +101,25 @@ class MetaMarketingServiceTest {
         assertThat(summary.recent()).hasSize(1);
         assertThat(summary.recent().get(0).operation()).isEqualTo("campaigns.list");
         assertThat(summary.recent().get(0).correlationId()).isEqualTo("c1");
+        assertThat(summary.window().from()).isBefore(summary.window().to());
+        long windowSeconds = java.time.Duration.between(summary.window().from(), summary.window().to()).getSeconds();
+        assertThat(windowSeconds).isBetween(14L * 24 * 3600, 16L * 24 * 3600);
+    }
+
+    @Test
+    void usageSummaryClampsDaysAndLimit() {
+        when(callLogs.countSince(any(Instant.class), eq(true))).thenReturn(0L);
+        when(callLogs.countSince(any(Instant.class), eq(false))).thenReturn(0L);
+        when(callLogs.findByCreatedAtGreaterThanEqualOrderByCreatedAtDesc(any(Instant.class), any()))
+                .thenReturn(List.of());
+
+        var tiny = service.usageSummary(0, 0);
+        long tinySeconds = java.time.Duration.between(tiny.window().from(), tiny.window().to()).getSeconds();
+        assertThat(tinySeconds).isBetween(0L, 2L * 24 * 3600);
+
+        var wide = service.usageSummary(999, 999);
+        long wideSeconds = java.time.Duration.between(wide.window().from(), wide.window().to()).getSeconds();
+        assertThat(wideSeconds).isBetween(89L * 24 * 3600, 91L * 24 * 3600);
     }
 
     @Test

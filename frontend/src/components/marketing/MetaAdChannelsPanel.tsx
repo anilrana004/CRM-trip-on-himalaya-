@@ -191,7 +191,15 @@ export function MetaAdChannelsPanel() {
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-900">Ads API usage (15 days)</h2>
             <p className="text-xs text-slate-500">
-              Operational metadata only — for Standard Access evidence. No tokens or lead fields.
+              Counts CRM → Graph HTTP attempts written to{" "}
+              <code className="rounded bg-slate-50 px-1">meta_api_call_log</code> during real
+              operator actions (diagnostics, ad accounts, campaigns, insights). Retries share a
+              correlation id and each attempt is counted. This is internal evidence only — not a
+              Meta approval status.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Window: {new Date(usage.window.from).toLocaleString()} –{" "}
+              {new Date(usage.window.to).toLocaleString()}
             </p>
           </div>
           <div className="flex flex-wrap gap-6 px-4 py-3 text-sm">
@@ -214,6 +222,8 @@ export function MetaAdChannelsPanel() {
                     <th className="px-4 py-2 font-medium">Account</th>
                     <th className="px-4 py-2 font-medium">HTTP</th>
                     <th className="px-4 py-2 font-medium">OK</th>
+                    <th className="px-4 py-2 font-medium">Error</th>
+                    <th className="px-4 py-2 font-medium">Correlation</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -226,6 +236,10 @@ export function MetaAdChannelsPanel() {
                       <td className="px-4 py-2 text-slate-600">{row.accountId || "—"}</td>
                       <td className="px-4 py-2 text-slate-600">{row.httpStatus ?? "—"}</td>
                       <td className="px-4 py-2">{row.success ? "yes" : "no"}</td>
+                      <td className="px-4 py-2 text-slate-600">{row.errorCode || "—"}</td>
+                      <td className="px-4 py-2 font-mono text-[11px] text-slate-500">
+                        {row.correlationId.slice(0, 8)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

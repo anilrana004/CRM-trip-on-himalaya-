@@ -41,4 +41,15 @@ class MetaMarketingAccessIT extends BaseIT {
         mockMvc.perform(get("/api/marketing/meta/ad-accounts").header("Authorization", authHeader(token)))
                 .andExpect(status().isServiceUnavailable());
     }
+
+    @Test
+    void managerCanReadUsageEvidenceWithoutMetaToken() throws Exception {
+        createUser("mgr.usage@toh.test", "Manager Usage", Role.MANAGER, "manager12345");
+        String token = login("mgr.usage@toh.test", "manager12345");
+
+        // Usage is CRM-side metadata; it must not require META_ACCESS_TOKEN.
+        mockMvc.perform(get("/api/marketing/meta/usage?days=15&limit=20")
+                        .header("Authorization", authHeader(token)))
+                .andExpect(status().isOk());
+    }
 }

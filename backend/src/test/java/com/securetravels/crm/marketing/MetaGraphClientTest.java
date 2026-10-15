@@ -17,11 +17,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
 class MetaGraphClientTest {
@@ -98,5 +101,38 @@ class MetaGraphClientTest {
         assertThatThrownBy(() -> client.get("insights.list", "act_1", "act_1/insights", Map.of()))
                 .isInstanceOf(MetaGraphException.class)
                 .satisfies(ex -> assertThat(((MetaGraphException) ex).retryable()).isTrue());
+    }
+
+    @Test
+    @DisplayName("retryable failure then success logs each attempt under one correlation id")
+    void retriesShareCorrelationIdAndAreLoggedPerAttempt() {
+        AppProperties props = new AppProperties();
+        props.getMeta().setAccessToken("test-token-not-real");
+        props.getMeta().setGraphBaseUrl("https://graph.facebook.com");
+        props.getMeta().setGraphVersion("v22.0");
+        props.getMeta().setMaxRetries(1);
+
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer retryServer = MockRestServiceServer.bindTo(builder).build();
+        MetaGraphClient retryClient = new MetaGraphClient(builder.build(), new ObjectMapper(), props, logs);
+
+        retryServer.expect(requestTo(org.hamcrest.Matchers.containsString("/v22.0/act_1/insights")))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"error\":{\"message\":\"(#17) User request limit\",\"code\":17}}"));
+        retryServer.expect(requestTo(org.hamcrest.Matchers.containsString("/v22.0/act_1/insights")))
+                .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+
+        var body = retryClient.get("insights.list", "act_1", "act_1/insights", Map.of());
+        assertThat(body.path("data").isArray()).isTrue();
+
+        ArgumentCaptor<MetaApiCallLog> captor = ArgumentCaptor.forClass(MetaApiCallLog.class);
+        verify(logs, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).hasSize(2);
+        assertThat(captor.getAllValues().get(0).getCorrelationId())
+                .isEqualTo(captor.getAllValues().get(1).getCorrelationId());
+        assertThat(captor.getAllValues().get(0).isSuccess()).isFalse();
+        assertThat(captor.getAllValues().get(1).isSuccess()).isTrue();
+        retryServer.verify();
     }
 }
