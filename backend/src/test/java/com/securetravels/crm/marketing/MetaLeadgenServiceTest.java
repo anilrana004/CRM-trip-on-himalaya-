@@ -141,4 +141,42 @@ class MetaLeadgenServiceTest {
         verify(graph, never()).get(anyString(), any(), anyString(), anyMap());
         verify(leadService, never()).createFromMeta(any(), any(), anyString());
     }
+
+    @Test
+    void nonPageObjectIsAcknowledgedWithoutGraph() throws Exception {
+        byte[] raw = "{\"object\":\"user\",\"entry\":[]}".getBytes(StandardCharsets.UTF_8);
+        service.ingest(raw, HmacSigner.sign(SECRET, raw));
+        verify(graph, never()).get(anyString(), any(), anyString(), anyMap());
+        verify(leadService, never()).createFromMeta(any(), any(), anyString());
+    }
+
+    @Test
+    void nonLeadgenFieldIsIgnored() throws Exception {
+        ObjectNode webhook = mapper.createObjectNode();
+        webhook.put("object", "page");
+        ObjectNode change = webhook.putArray("entry").addObject().putArray("changes").addObject();
+        change.put("field", "feed");
+        change.putObject("value").put("leadgen_id", "should_ignore");
+        byte[] raw = mapper.writeValueAsBytes(webhook);
+
+        service.ingest(raw, HmacSigner.sign(SECRET, raw));
+
+        verify(graph, never()).get(anyString(), any(), anyString(), anyMap());
+        verify(events, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void sanitizeFailureStripsAccessTokenFragments() {
+        assertThat(MetaLeadgenService.sanitizeFailure("bad access_token=EAABleak&x=1"))
+                .doesNotContain("EAABleak")
+                .contains("access_token=***");
+        assertThat(MetaLeadgenService.sanitizeFailure("EAABxxxxxxTokenShape")).doesNotContain("EAABxxxxxx");
+        assertThat(MetaLeadgenService.sanitizeFailure(null)).isEqualTo("leadgen processing failed");
+    }
+
+    @Test
+    void verifySubscriptionRejectsBlankChallenge() {
+        assertThatThrownBy(() -> service.verifySubscription("subscribe", "verify-me", "  "))
+                .isInstanceOf(WebhookSignatureException.class);
+    }
 }

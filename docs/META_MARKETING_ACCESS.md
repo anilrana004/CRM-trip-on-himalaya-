@@ -55,14 +55,74 @@ Do **not** edit campaigns or increase spend. Read-only UI only.
 Automated coverage (mocked Graph): `MetaMarketingServiceTest`,
 `MetaMarketingControllerTest`, `MetaMarketingAccessIT` (CRM role gate).
 
-## 3. Webhook (only after public HTTPS)
+## 3. Webhook readiness (Lead Ads)
 
-Callback: `https://<railway-domain>/api/webhook/meta`
+### 3.1 What the CRM implements (verified in code)
 
-1. Meta App → Webhooks → verify with `META_WEBHOOK_VERIFY_TOKEN`.
-2. Subscribe object `page`, field `leadgen`.
-3. Subscribe the Facebook Page that owns the forms.
-4. Do **not** claim subscription is active until Meta shows the Page subscribed.
+| Concern | Behaviour |
+|---|---|
+| Path | `GET` + `POST` `/api/webhook/meta` (public; JWT not used) |
+| Auth | GET: `hub.mode=subscribe` + `hub.verify_token` == `META_WEBHOOK_VERIFY_TOKEN` (constant-time). POST: `X-Hub-Signature-256: sha256=<hex>` over **raw** body with `META_APP_SECRET` |
+| Object / field | Accepts `object=page`, processes `changes[].field=leadgen` only; other objects/fields acknowledged with HTTP 200 (no Meta retry storm) |
+| Ack | HTTP **200** after signature OK and parse; lead fetch + CRM create run in-request (idempotent on `meta_lead_id`) |
+| Idempotency | Unique `meta_leadgen_events.meta_lead_id` + skip `PROCESSED`/`DUPLICATE`; `FAILED` may re-attempt on later delivery |
+| Lead fetch | Graph `GET /{leadgen_id}?fields=id,created_time,field_data,platform` using server `META_ACCESS_TOKEN` |
+| Association | Stores `page_id`, `form_id`, `ad_id`, `adgroup_id`, `campaign_id` on the event; remarks include non-PII custom answers |
+| Safety | No field payloads in logs; failure messages strip `access_token=` / `EAA…` shapes; POST size cap 64 KiB → 400; rate-limited with other webhooks |
+| Hosting | Secrets and callback live on **Railway backend only** — never configure Meta webhook to the Vercel frontend |
+
+Automated tests: `MetaHubSignatureTest`, `MetaLeadgenServiceTest` (verify, signature, create, duplicate skip).
+
+### 3.2 Callback URL (template — fill from Railway, do not invent)
+
+```text
+https://<YOUR-RAILWAY-BACKEND-PUBLIC-HOST>/api/webhook/meta
+```
+
+How to obtain the host (ops):
+
+1. Railway → **backend** service → Settings → Networking → public HTTPS domain
+   (or the value you already put in Vercel `API_PROXY_TARGET`, without any path).
+2. Append `/api/webhook/meta` exactly. No trailing slash required.
+3. Confirm publicly: `GET https://<host>/api/health` returns OK before Meta verify.
+
+This repository **cannot** prove your live Railway domain, Page subscription, or
+Meta app webhook subscription. Those are dashboard facts.
+
+### 3.3 Meta dashboard steps (manual — do not claim done until Meta UI shows it)
+
+Prerequisites on Railway (values never pasted into chat/docs commits):
+
+- `META_ACCESS_TOKEN` — system user token that can read Lead Ads for the Page
+- `META_APP_SECRET` — App → Settings → Basic
+- `META_WEBHOOK_VERIFY_TOKEN` — a long random string **you** choose; paste the
+  **same** value into Meta’s webhook Verify Token field
+
+Then:
+
+1. Meta Developers → your app → **Webhooks** → add/edit callback URL =
+   `https://<host>/api/webhook/meta`, Verify Token = `META_WEBHOOK_VERIFY_TOKEN`.
+2. Click **Verify and Save**. CRM returns `hub.challenge` as plain text on success.
+3. Subscribe object **`page`**, field **`leadgen`** (not `user` / not feed-only).
+4. Still required separately: **subscribe the Facebook Page** that owns the Lead
+   Forms to this app (Page → Settings → Linked apps / Meta’s Page subscription
+   UI, or Business settings). App webhook field subscription alone is **not**
+   enough.
+5. Permissions / assets typically needed for end-to-end lead pull (confirm in
+   current Meta docs for your app type): leads-related + pages access on the
+   system user / Business that owns the Page; token must see the form’s Page.
+6. Send a real/test Lead Ad submission. Expect CRM lead + `meta_leadgen_events`
+   row; a duplicate webhook delivery must **not** create a second lead.
+
+Smoke GET (placeholders only):
+
+```bash
+curl -sS "https://<host>/api/webhook/meta?hub.mode=subscribe&hub.verify_token=<SAME_AS_RAILWAY>&hub.challenge=testchallenge"
+# expect body: testchallenge
+```
+
+Do **not** claim “webhook live” until: Verify succeeds **and** Meta shows the
+Page subscribed **and** a test lead lands in CRM.
 
 ## 4. Usage evidence hygiene
 

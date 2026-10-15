@@ -16,6 +16,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +56,10 @@ public class MetaLeadgenService {
         if (expected == null || expected.isBlank()) {
             throw new WebhookSignatureException("META_WEBHOOK_VERIFY_TOKEN is not configured");
         }
-        if (!"subscribe".equals(mode) || !expected.equals(verifyToken) || challenge == null || challenge.isBlank()) {
+        if (!"subscribe".equals(mode)
+                || !constantTimeEquals(expected, verifyToken)
+                || challenge == null
+                || challenge.isBlank()) {
             throw new WebhookSignatureException("Meta webhook verification failed");
         }
         return challenge;
@@ -204,10 +209,29 @@ public class MetaLeadgenService {
                     event.getMetaLeadId(),
                     result.lead().id());
         } catch (Exception ex) {
-            event.markFailed(ex.getMessage());
+            event.markFailed(sanitizeFailure(ex.getMessage()));
             events.save(event);
             log.warn("[meta-leadgen] failed metaLeadId={}: {}", event.getMetaLeadId(), ex.getClass().getSimpleName());
         }
+    }
+
+    /** Never persist token-shaped fragments from Graph/transport errors. */
+    static String sanitizeFailure(String message) {
+        if (message == null || message.isBlank()) {
+            return "leadgen processing failed";
+        }
+        String cleaned = message.replaceAll("(?i)access_token=[^&\\s]+", "access_token=***");
+        cleaned = cleaned.replaceAll("(?i)EAA[A-Za-z0-9]+", "***");
+        return cleaned.length() > 1000 ? cleaned.substring(0, 1000) : cleaned;
+    }
+
+    private static boolean constantTimeEquals(String expected, String provided) {
+        if (provided == null) {
+            return false;
+        }
+        byte[] a = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] b = provided.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(a, b);
     }
 
     private static Lead.Source resolveSource(String platform, Map<String, String> fields) {

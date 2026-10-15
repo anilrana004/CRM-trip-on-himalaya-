@@ -1,6 +1,6 @@
 package com.securetravels.crm.marketing;
 
-import com.securetravels.crm.common.exception.WebhookSignatureException;
+import com.securetravels.crm.common.exception.BadRequestException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -50,7 +50,8 @@ public class MetaWebhookController {
             @RequestBody byte[] raw,
             @RequestHeader(value = MetaHubSignature.HEADER, required = false) String signature) {
         if (raw != null && raw.length > MAX_PAYLOAD_BYTES) {
-            throw new WebhookSignatureException("Meta webhook payload exceeds size limit");
+            // Not a signature failure — avoid 401 so operators can distinguish misconfig from abuse.
+            throw new BadRequestException("Meta webhook payload exceeds size limit");
         }
         leadgen.ingest(raw == null ? new byte[0] : raw, signature);
         return ResponseEntity.ok().build();
