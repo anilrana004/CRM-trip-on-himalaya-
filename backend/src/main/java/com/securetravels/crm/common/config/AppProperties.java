@@ -409,8 +409,11 @@ public class AppProperties {
     /**
      * ADR 0008 — Meta Marketing / Graph API. All secrets stay server-side.
      * Empty access-token means the marketing endpoints fail closed with 503.
+     * {@code appId} is optional/reserved (ops documentation); Graph calls use
+     * the access token only.
      */
     public static class Meta {
+        /** Optional. Not required for Graph/Ads calls in the current client. */
         private String appId = "";
         private String appSecret = "";
         private String accessToken = "";

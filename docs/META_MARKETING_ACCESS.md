@@ -5,16 +5,22 @@
 
 ## 1. Server configuration (Railway)
 
-| Variable | Purpose |
-|---|---|
-| `META_APP_ID` | Meta app id |
-| `META_APP_SECRET` | Webhook signature (`X-Hub-Signature-256`) |
-| `META_ACCESS_TOKEN` | Business **system user** token with ads + leads permissions |
-| `META_GRAPH_VERSION` | Default `v22.0` (raise only after checking Meta changelog) |
-| `META_AD_ACCOUNT_IDS` | Optional allowlist (`act_…`, comma-separated) |
-| `META_WEBHOOK_VERIFY_TOKEN` | Hub challenge for `/api/webhook/meta` |
+Boot logs a non-sensitive summary: `[meta-config] accessToken=set|missing …`
+(values are never logged). Ads endpoints return **503** if the access token is
+missing; the process still starts so DB/health checks work.
 
-Never put these on Vercel. Frontend only needs `API_PROXY_TARGET`.
+| Variable | Required? | Purpose |
+|---|---|---|
+| `META_ACCESS_TOKEN` | **Yes** for Ads/Campaigns/insights/lead fetch | Business **system user** token with ads + leads permissions |
+| `META_APP_SECRET` | **Yes** for webhook POST | `X-Hub-Signature-256` verification |
+| `META_WEBHOOK_VERIFY_TOKEN` | **Yes** for webhook GET | Hub challenge for `/api/webhook/meta` |
+| `META_APP_ID` | Optional | Meta app id for ops/docs; **not used by Graph client today** |
+| `META_GRAPH_VERSION` | Optional (default `v22.0`) | Graph API version |
+| `META_AD_ACCOUNT_IDS` | Optional | Allowlist (`act_…`, comma-separated); empty = discover via token |
+| `META_GRAPH_BASE_URL` | Optional | Override Graph host (tests) |
+| `META_CONNECT_TIMEOUT` / `META_READ_TIMEOUT` / `META_MAX_RETRIES` | Optional | HTTP client tuning |
+
+Never put Meta secrets on Vercel. Frontend only needs `API_PROXY_TARGET`.
 
 ## 2. Functional verification (real business use)
 
