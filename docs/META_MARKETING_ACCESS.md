@@ -84,7 +84,8 @@ How to obtain the host (ops):
 1. Railway → **backend** service → Settings → Networking → public HTTPS domain
    (or the value you already put in Vercel `API_PROXY_TARGET`, without any path).
 2. Append `/api/webhook/meta` exactly. No trailing slash required.
-3. Confirm publicly: `GET https://<host>/api/health` returns OK before Meta verify.
+3. Confirm publicly: `GET https://<host>/actuator/health` (Railway healthcheck)
+   and/or `GET https://<host>/api/health` returns OK before Meta verify.
 
 This repository **cannot** prove your live Railway domain, Page subscription, or
 Meta app webhook subscription. Those are dashboard facts.
@@ -171,9 +172,74 @@ The Ad Channels panel must not imply Meta has approved the app.
 | CORS | Prod should set `CORS_ALLOWED_ORIGINS` to Vercel origins (boot warns if localhost remains) |
 | Railway isolation | Meta config via env/`AppProperties` only — no Railway SDK in `marketing/` |
 
-## 7. What we will not do
+## 7. Phase 9 verification (2026-10-16) — commands & outcomes
+
+Ran against commit `4ca82e8` (+ this doc). **No production deploy was performed.**
+
+| Check | Command | Result |
+|---|---|---|
+| Meta unit tests | `mvn -Dtest=MetaGraphClientTest,MetaMarketingServiceTest,MetaMarketingControllerTest,MetaLeadgenServiceTest,MetaDiagnosticsTest,MetaApiCallLogHygieneTest,MetaHubSignatureTest,MetaWebhookControllerTest,MetaConfigReporterTest test` (Docker `maven:3.9-eclipse-temurin-25`) | **PASS** (exit 0) |
+| Meta access IT | `mvn -Dtest=MetaMarketingAccessIT test` with `SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/securetravels_test` on compose network | **PASS** (exit 0); Flyway validated **28** migrations, schema at **v28** |
+| Frontend typecheck | `npx tsc --noEmit` in `frontend/` | **PASS** (exit 0) |
+| Frontend lint | `npm run lint` | **PASS** (exit 0) |
+| Frontend build | `npm run build` (after clearing stale `.next`) | **PASS** (exit 0); includes `/campaigns`, `/ad-channels` |
+
+Migration implication: Meta tables/indexes ship in **`V28__meta_marketing.sql`** only. No new Flyway version in Phases 2–9 code hardening. Deploying backend that includes V28 applies it once on boot via Flyway — non-destructive additive DDL.
+
+## 8. Railway + Vercel deploy plan (await explicit approval)
+
+Do **not** treat git push as a finished production cutover. Apply variables, confirm health, then exercise CRM Meta UI.
+
+### 8.1 Where things run
+
+| Layer | Host | Meta secrets? |
+|---|---|---|
+| Spring Boot API + webhook | **Railway** backend service (`Dockerfile` / `railway.toml`) | **Yes** — all `META_*` |
+| Postgres | Railway Postgres plugin | N/A (Flyway on boot) |
+| Next.js CRM UI | **Vercel** (`frontend/`, `API_PROXY_TARGET` only) | **Never** |
+
+### 8.2 Railway backend checklist
+
+1. Service root = repo with `Dockerfile`; healthcheck = `/actuator/health` (`railway.toml`).
+2. Set platform vars: `SPRING_PROFILES_ACTIVE=prod`, DB (`DATABASE_URL` or `DB_*`), `JWT_SECRET`, `WEBHOOK_SECRET`, `CORS_ALLOWED_ORIGINS=https://<vercel-app>`.
+3. Set Meta vars (values only in Railway UI — see `ops/ENV.production.example`):
+   - Required for Ads UI: `META_ACCESS_TOKEN`
+   - Required for Lead Ads webhook: `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`
+   - Recommended prod: `META_AD_ACCOUNT_IDS=act_…`
+   - Optional: `META_GRAPH_VERSION`, `META_APP_ID`
+4. Public HTTPS domain on the **backend** service.
+5. After deploy, logs should show `[meta-config] accessToken=set …` (never values).
+6. Confirm: `GET https://<railway-host>/actuator/health` and/or `/api/health`.
+
+### 8.3 Vercel frontend checklist
+
+1. Root Directory = `frontend`.
+2. `API_PROXY_TARGET=https://<railway-host>` (no path, no Meta secrets, no `NEXT_PUBLIC_META_*`).
+3. Redeploy after Railway domain/proxy changes.
+
+### 8.4 Post-deploy smoke (operator)
+
+1. Login as MANAGER/ADMIN/CEO → **Ad Channels** → **Run Meta diagnostic** → expect `OK` when token is valid.
+2. **Campaigns** → list + insights preset (read-only; no spend changes).
+3. **Usage** panel shows recent ops (CRM evidence, not Meta approval).
+4. Only then: Meta webhook callback `https://<railway-host>/api/webhook/meta` + Page `leadgen` subscribe (see §3).
+
+### 8.5 Rollback
+
+- Railway: redeploy previous successful deployment / image for the backend service.
+- Vercel: promote previous deployment.
+- DB: V28 is additive; rolling back app code leaves new tables unused (do **not** drop Meta tables without an explicit approved migration).
+
+### 8.6 Out of scope until you approve
+
+- Triggering Railway/Vercel production deploy from this agent
+- Meta dashboard subscribe / Standard Access re-application
+- Destructive DB operations
+
+## 9. What we will not do
 
 - Fake usage loops
 - Hardcoding personal explorer tokens
 - Calling Graph from the browser with privileged tokens
 - Claiming webhooks are live before Railway HTTPS + Page subscription
+- Auto-deploy or auto-submit Meta Standard Access
